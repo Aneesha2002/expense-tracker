@@ -52,6 +52,48 @@ def delete_user(user_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"message": f"User with id {user_id} deleted"}
 
+
+# CREATE expense
+@app.post("/expenses/", response_model=schemas.ExpenseResponse)
+def create_expense(expense: schemas.ExpenseCreate, db: Session = Depends(get_db)):
+    db_expense = models.Expense(
+        amount=expense.amount,
+        description=expense.description,
+        owner_id=expense.owner_id
+    )
+    db.add(db_expense)
+    db.commit()
+    db.refresh(db_expense)
+    return db_expense
+
+# READ expenses
+@app.get("/expenses/", response_model=list[schemas.ExpenseResponse])
+def read_expenses(db: Session = Depends(get_db)):
+    return db.query(models.Expense).all()
+
+# UPDATE expense
+@app.put("/expenses/{expense_id}", response_model=schemas.ExpenseResponse)
+def update_expense(expense_id: int, expense: schemas.ExpenseUpdate, db: Session = Depends(get_db)):
+    db_expense = db.query(models.Expense).filter(models.Expense.id == expense_id).first()
+    if not db_expense:
+        raise HTTPException(status_code=404, detail="Expense not found")
+    db_expense.amount = expense.amount
+    db_expense.description = expense.description
+    db_expense.owner_id = expense.owner_id
+    db.commit()
+    db.refresh(db_expense)
+    return db_expense
+
+# DELETE expense
+@app.delete("/expenses/{expense_id}", response_model=schemas.Message)
+def delete_expense(expense_id: int, db: Session = Depends(get_db)):
+    db_expense = db.query(models.Expense).filter(models.Expense.id == expense_id).first()
+    if not db_expense:
+        raise HTTPException(status_code=404, detail="Expense not found")
+    db.delete(db_expense)
+    db.commit()
+    return {"message": f"Expense with id {expense_id} deleted"}
+
 @app.get("/")
 def read_root():
     return {"message": "Hello, Expense Tracker!"}
