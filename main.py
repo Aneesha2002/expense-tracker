@@ -52,7 +52,6 @@ def delete_user(user_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"message": f"User with id {user_id} deleted"}
 
-
 @app.get("/")
 def read_root():
     return {"message": "Hello, Expense Tracker!"}
