@@ -8,8 +8,13 @@ from typing import Optional
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # JWT settings
-SECRET_KEY = " "
-  # REMEMEBER TO ADD THIS 
+import os
+
+SECRET_KEY = os.environ.get("SECRET_KEY")
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY environment variable not set!")
+
+  #  ADDED SECRET KEY SAFELY 
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
