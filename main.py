@@ -3,6 +3,11 @@ from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import Base, engine, SessionLocal
 import models,schemas
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from auth import hash_password, verify_password, create_access_token, decode_access_token
+from fastapi import Security
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
 app = FastAPI()
 
 
@@ -16,9 +21,20 @@ def get_db():
     finally:
         db.close()
 
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    payload = decode_access_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    username = payload.get("sub")
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    return user
+
 # CREATE - add a new user
 @app.post("/users/", response_model=schemas.UserResponse)
 def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    hashed_pw = hash_password(user.password)  # hash the password
     db_user = models.User(username=user.username, password=user.password)
     db.add(db_user)
     db.commit()
@@ -59,8 +75,8 @@ def create_expense(expense: schemas.ExpenseCreate, db: Session = Depends(get_db)
     db_expense = models.Expense(
         amount=expense.amount,
         description=expense.description,
-        owner_id=expense.owner_id
-    )
+        owner_id=get_current_user.owner_id
+    ) # force owner_id to logged-in user CHECK AGAIN FOR CURENT_USER
     db.add(db_expense)
     db.commit()
     db.refresh(db_expense)
@@ -93,6 +109,16 @@ def delete_expense(expense_id: int, db: Session = Depends(get_db)):
     db.delete(db_expense)
     db.commit()
     return {"message": f"Expense with id {expense_id} deleted"}
+
+@app.post("/token")
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.username == form_data.username).first()
+    if not user or not verify_password(form_data.password, user.password):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    access_token = create_access_token(data={"sub": user.username})
+    return {"access_token": access_token, "token_type": "bearer"}
+
 
 @app.get("/")
 def read_root():
